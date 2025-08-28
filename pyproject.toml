@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "grutils"
+
+version = "0.1.0"
+description = "Utilities by Lucas Gruwez"
+authors = [
+    { name="Lucas Gruwez", email="gruwez.lucas@gmail.com" }
+]
+readme = "README.md"
+requires-python = ">=3.7"
+license = "MIT"
+dependencies = [
+    "matplotlib",
+    "numpy"
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
