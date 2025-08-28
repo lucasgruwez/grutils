@@ -40,10 +40,12 @@ def matlab_legend():
 #-------------------------------------------------------------------------------
 
 from . import plotting
+from . import calculus
+from . import curves
 
 __all__ = [
     # Matplotlibrc functions
     'pyplot_latex', 'matlab_legend',
-    # Plotting functions
-    'plotting'
+    # Modules
+    'plotting', 'calculus', 'curves'
 ]
