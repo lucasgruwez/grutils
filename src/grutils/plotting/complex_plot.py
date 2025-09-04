@@ -257,12 +257,12 @@ def plot_complex_map_forward(ax, f, re_lim=(-2, 2), im_lim=(-2, 2), over_sample=
     for i, re in enumerate(re_lines):
         z_line = re + 1j * np.linspace(im_lim[0] - osy, im_lim[1] + osy, 1000)
         w_line = f(z_line)
-        ax.plot(np.real(w_line), np.imag(w_line), color="red", lw=0.8, zorder=1)
+        ax.plot(np.real(w_line), np.imag(w_line), color="red", zorder=1)
 
     for i, im in enumerate(im_lines):
         z_line = np.linspace(re_lim[0] - osx, re_lim[1] + osx, 1000) + 1j * im
         w_line = f(z_line)
-        ax.plot(np.real(w_line), np.imag(w_line), color="blue", lw=0.8, zorder=1)
+        ax.plot(np.real(w_line), np.imag(w_line), color="blue", zorder=1)
 
     ax.set_xlim(re_lim)
     ax.set_ylim(im_lim)
