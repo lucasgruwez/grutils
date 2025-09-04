@@ -208,14 +208,14 @@ def plot_complex_map(
     valid = np.isfinite(Zr) & np.isfinite(Zi)
     if not np.any(valid):
         raise RuntimeError("Numeric inverse failed everywhere in the requested region.")
-    
-    rmin, rmax = np.nanmin(Zr[valid]), np.nanmax(Zr[valid])
-    imin, imax = np.nanmin(Zi[valid]), np.nanmax(Zi[valid])
-    
+
+    rmin, rmax = np.nanpercentile(Zr[valid], [0, 95])
+    imin, imax = np.nanpercentile(Zi[valid], [0, 95])
+
     r_levels = np.linspace(rmin, rmax, n_lines)
     i_levels = np.linspace(imin, imax, n_lines)
 
-    contour_kwargs = dict(linestyles='solid', negative_linestyles='solid')
+    contour_kwargs = dict(linestyles="solid", negative_linestyles="solid")
     ax.contour(X, Y, Zr, levels=r_levels, colors="red", **contour_kwargs)
     ax.contour(X, Y, Zi, levels=i_levels, colors="blue", **contour_kwargs)
 
@@ -223,25 +223,73 @@ def plot_complex_map(
     if np.any(~mask):
         ax.contourf(X, Y, (~mask).astype(float), levels=[0.5, 1.5], alpha=0.08)
 
-#-------------------------------------------------------------------------------
+
+def plot_complex_map_forward(ax, f, re_lim=(-2, 2), im_lim=(-2, 2), over_sample=3, d_lines=1):
+    """
+    Plot the warped grid in the OUTPUT plane by passing a grid in the INPUT plane
+    through the function f.
+
+    Colors:
+      - Red contours: Re(z) = const  (images of vertical input grid lines)
+      - Blue contours: Im(z) = const (images of horizontal input grid lines)
+
+    Parameters
+    ----------
+    ax : matplotlib Axes
+        Axes on which to plot.
+    f : callable
+        Complex->complex function.
+    re_lim, im_lim : tuple
+        Output-plane bounds (Re(z), Im(z)).
+    over_sample : int
+        Oversampling factor for the input grid to improve contour quality.
+    d_lines : float
+        Spacing between contour lines in the input plane.
+    """
+
+    # Calculate oversampling factor
+    osx = (over_sample - 1) * (re_lim[1] - re_lim[0])/2
+    osy = (over_sample - 1) * (im_lim[1] - im_lim[0])/2
+
+    re_lines = np.arange(re_lim[0] - osx, re_lim[1] + osx + d_lines, d_lines)
+    im_lines = np.arange(im_lim[0] - osy, im_lim[1] + osy + d_lines, d_lines)
+
+    for i, re in enumerate(re_lines):
+        z_line = re + 1j * np.linspace(im_lim[0] - osy, im_lim[1] + osy, 1000)
+        w_line = f(z_line)
+        ax.plot(np.real(w_line), np.imag(w_line), color="red", lw=0.8, zorder=1)
+
+    for i, im in enumerate(im_lines):
+        z_line = np.linspace(re_lim[0] - osx, re_lim[1] + osx, 1000) + 1j * im
+        w_line = f(z_line)
+        ax.plot(np.real(w_line), np.imag(w_line), color="blue", lw=0.8, zorder=1)
+
+    ax.set_xlim(re_lim)
+    ax.set_ylim(im_lim)
+
+# -------------------------------------------------------------------------------
 # Testing
-#-------------------------------------------------------------------------------
+# -------------------------------------------------------------------------------
 
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
 
     # Example function and its derivative
-    f_sq = lambda z: z**2
-    df_sq = lambda z: 2 * z
+    # f  = lambda z: np.log(z)
+    # z0 = lambda w: np.exp(w)  # Inverse is known
+
+    f  = lambda z: 1/z
+    df = lambda z: -1/(z**2)
+    z0 = lambda w: 1/w  # Inverse is known
 
     fig, ax = plt.subplots(figsize=(6, 6))
 
-    plot_complex_map(ax, f_sq, df=df_sq)
+    # plot_complex_map(ax, f, z0_seed=z0)
+    plot_complex_map_forward(ax, f, re_lim=(-2, 2), im_lim=(-2, 2), over_sample=2, d_lines=0.2)
 
-    ax.set_aspect('equal')
-    ax.set_title(r'Complex map of $f(z) = z^2$')
-    ax.set_xlabel(r'Re$(w)$')
-    ax.set_ylabel(r'Im$(w)$')
+    ax.set_aspect("equal")
+    ax.set_title(r"Complex map of $f(z)$")
+    ax.set_xlabel(r"Re$(w)$")
+    ax.set_ylabel(r"Im$(w)$")
 
     plt.show()
-
