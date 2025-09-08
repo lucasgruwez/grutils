@@ -546,7 +546,6 @@ main-sequence
 manifold-theory
 map-images
 markov-chains
-mass
 mass-defect
 mass-distribution
 mass-flux
@@ -707,8 +706,7 @@ polarity
 poles-rational-functions
 potential-barriers
 potential-difference
-potential-energy-larger
-potential-energy-less
+potential-energy
 potential-flows
 potential-theory
 power-generation
@@ -946,13 +944,14 @@ triple-integrals
 truncation-error
 truss-architecture
 truth-tables
-turbines-compressors
+turbines
+compressors
 turning-points
 two-body-problem
 types-of-collisions
 ultimate-tensile-stress
-uncertainty-propagation
-uncertainty-types
+uncertainties
+uncertainty-principle
 undamped-oscillators
 undamped-pendulum
 unit-cell
