@@ -44,6 +44,10 @@ USELESS_WORDS = [
     "figure",
     "table",
     "proof",
+    "supports",
+    "diagram",
+    "graph",
+    "plot",
 ]
 
 
@@ -142,7 +146,8 @@ def update_embeddings(
         cached = cache.get(rel, {})
         if force or (not cached) or (cached.get("hash") != hsh):
             headings, txt = extract_toc_and_text(f)
-            emb = embed_text(txt)
+            # emb = embed_text(txt) # Original, full text embedding
+            emb = embed_text("\n".join(headings))  # Faster and often sufficient
             cache[rel] = {"hash": hsh, "embedding": emb, "headings": headings}
 
     # Save updated cache
@@ -163,54 +168,26 @@ def cosine_similarity(a: List[float], b: List[float]) -> float:
     return dot_product / (norm_a * norm_b) if norm_a and norm_b else 0.0
 
 
-def similar_files(file: str, cache: Dict[str, List[float]], k: int = 5) -> List[str]:
-    """
-    Find the k most similar files to the given file based on embeddings.
-    """
-    if file not in cache:
-        raise ValueError(f"File {file} not found in cache")
-    target_emb = cache[file]["embedding"]
-
-    # Compute cosine similarities of file to all other files
-    similarities = [
-        (other_file, cosine_similarity(target_emb, emb["embedding"]))
-        for other_file, emb in cache.items()
-        if other_file != file
-    ]
-    # Sort by similarity and return top k files
-    similarities.sort(key=lambda x: x[1], reverse=True)
-    return [f for f, _ in similarities[:k]]
-
-
 # ------------------------------------------------------------------------------
 # Prompt generation logic
 # ------------------------------------------------------------------------------
 
 
-def generate_prompt(file: str, cache: Dict[str, List[float]], k: int = 5) -> str:
+def generate_prompt(file: str, cache: Dict[str, List[float]]) -> str:
     """
-    Generate a prompt for the given file using its most similar files.
+    Generate a prompt for the given file.
     """
     if file not in cache:
         raise ValueError(f"File {file} not found in cache")
 
     target_headings = cache[file]["headings"]
-    similar = similar_files(file, cache, k)
 
-    logging.debug(f"Similar files for '{file}': {similar}")
     logging.debug(f"Headings for '{file}': {target_headings}")
 
     # Headings in the main input file
     prompt = f"The following are the headings from the file '{file}':\n"
     for h in target_headings:
         prompt += f"- {h}\n"
-
-    # Headings in similar files
-    prompt += "\nSimilar files and their headings:\n"
-    for sim_file in similar:
-        prompt += f"\nFile: {sim_file}\n"
-        for h in cache[sim_file]["headings"]:
-            prompt += f"- {h}\n"
 
     # Instructions for tag generation
     prompt += (
@@ -234,7 +211,7 @@ def get_candidate_tags(
     Extract candidate tags from the folder name and its parent directories.
     """
     rel = os.path.normpath(file)
-    prompt = generate_prompt(rel, cache, k=5)
+    prompt = generate_prompt(rel, cache)
 
     # Prompt ollama model to generate candidate tags
     response = ollama.generate(model=model, prompt=prompt)
@@ -288,7 +265,7 @@ def embed_tags(
     tags: List[str],
     model: str = "nomic-embed-text:latest",
     cache: str = "./tag_cache.txt",
-    threshold: float = 0.8,
+    threshold: float = 0.9,
 ) -> Dict[str, List[float]]:
     """
     Generate embeddings for a list of tags.
@@ -312,7 +289,9 @@ def embed_tags(
     # Remove tags that are too similar to each other
     logging.info("Removing similar tags...")
     unique_tags = {}
-    for tag, emb in tag_embeddings.items():
+    # Sort by length, so that shorter tags are preferred
+    sorted_tags = sorted(tag_embeddings.items(), key=lambda x: len(x))
+    for tag, emb in sorted_tags:
         similar_tags = {
             existing_tag: cosine_similarity(emb, existing_emb)
             for existing_tag, existing_emb in unique_tags.items()
@@ -332,8 +311,12 @@ def embed_tags(
         tag: emb for tag, emb in unique_tags.items() if tag not in USELESS_WORDS
     }
 
+    # Remove long tags
+    unique_tags = {tag: emb for tag, emb in unique_tags.items() if len(tag) <= 24}
+
     with open(cache, "w", encoding="utf-8") as fh:
-        fh.write("\n".join(unique_tags.keys()))
+        for tag in sorted(unique_tags.keys()):
+            fh.write(f"{tag}\n")
 
     logging.info(f"Updated cache file: {os.path.abspath(cache)}")
 
@@ -359,20 +342,12 @@ def find_tags(
         (tag, cosine_similarity(file_emb, tag_emb)) for tag, tag_emb in tags.items()
     ]
     # Remove tags below the threshold
-    similarities = [(tag, sim) for tag, sim in similarities if sim >= threshold]
-    # Return top n tags
+    similarities = [(tag, sim) for tag, sim in similarities]
     similarities.sort(key=lambda x: x[1], reverse=True)
 
-    tags = similarities[:top_n]
+    similarities = [(tag, sim) for tag, sim in similarities if sim >= threshold]
 
-    # Tags that appear three times or more in the file are probably relevant
-    with open(os.path.join(folder, file), "r", encoding="utf-8") as fh:
-        text = fh.read().lower()
-        for tag, sim in similarities[:100]:  # Check only the top 100 tags
-            if text.count(tag.replace("-", " ")) >= 3:
-                similarities.insert(0, (tag, 1.0))
-
-    return similarities
+    return similarities[:top_n]
 
 
 # ------------------------------------------------------------------------------
@@ -419,7 +394,7 @@ def add_tags(file: str, tags: List[str]):
 
 
 if __name__ == "__main__":
-    regenerate_candidates = True
+    regenerate_candidates = False
     if len(sys.argv) > 1:
         folder = sys.argv[1]
     else:
